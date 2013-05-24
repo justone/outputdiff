@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Pod::Usage;
+
+Getopt::Long::Configure("no_auto_abbrev");
+
+my %options;
+my $opts_ok
+    = GetOptions( \%options, 'help|?|h', 'man', 'name|n=s', 'compare|c=s',
+    'remove|r=s', 'remove-all|n' );
+
+pod2usage(2) if !$opts_ok;
+pod2usage(1) if exists $options{help};
+pod2usage( -exitstatus => 0, -verbose => 2 ) if exists $options{man};
+
+__END__
+
+=head1 NAME
+
+outputdiff - Diff output from multiple command runs.
+
+=head1 SYNOPSIS
+
+ $ command --with --output | outputdiff [options]
+
+ Options:
+  -n --new <name>           Create the initial version that future output will
+                            be compared against.
+  -c --compare <name>       Compare new output against the previous output.
+  -l --list                 List all comparisons.
+  -r --remove <name>        Remove a comparison.
+  -n --remove-all           Remove all previous comparisons.
+
+ Documentation options:
+  -v --verbose              Print more details about what the script is doing.
+  -t --test                 Don't actually do anything.  Useful when combined
+                            with --verbose.
+  -h --help -?              brief help message
+     --man                  full documentation
+
+=head1 REQUIRED ARGUMENTS
+
+Either -n (for new) or -c (for compare) is required, nothing else.
+
+=head1 DESCRIPTION
+
+This script implements a simple output comparison system.
+
+TODO write the rest of this
+
+=head1 EXAMPLES
+
+Capturing the output of iptables and comparing the output after some
+modification:
+
+  $ iptables -L -n | outputdiff -n
+  $ # do something to change ip tables rules
+  $ iptables -L -n | outputdiff -c
+  # diff output
+  # ...
+
+=head1 AUTHOR
+
+Nate Jones E<lt>nate@endot.orgE<gt>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2013 by Nate Jones E<lt>nate@endot.orgE<gt>.
+
+This program is free software; you can use, modify, and redistribute it under
+the Artistic License, version 2.0.
+
+See http://www.opensource.org/licenses/artistic-license-2.0.php
+
+=cut
