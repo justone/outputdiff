@@ -10,8 +10,8 @@ Getopt::Long::Configure("no_auto_abbrev");
 
 my %options;
 my $opts_ok
-    = GetOptions( \%options, 'help|?|h', 'man', 'name|n=s', 'compare|c=s',
-    'remove|r=s', 'remove-all|n' );
+    = GetOptions( \%options, 'help|?|h', 'man', 'new|n:s', 'compare|c:s',
+    'list|l', 'remove|r=s', 'remove-all' );
 
 pod2usage(2) if !$opts_ok;
 pod2usage(1) if exists $options{help};
@@ -33,7 +33,7 @@ outputdiff - Diff output from multiple command runs.
   -c --compare <name>       Compare new output against the previous output.
   -l --list                 List all comparisons.
   -r --remove <name>        Remove a comparison.
-  -n --remove-all           Remove all previous comparisons.
+     --remove-all           Remove all previous comparisons.
 
  Documentation options:
   -v --verbose              Print more details about what the script is doing.
