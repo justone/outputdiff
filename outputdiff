@@ -5,17 +5,89 @@ use warnings;
 
 use Getopt::Long;
 use Pod::Usage;
+use File::Path qw(make_path remove_tree);
 
-Getopt::Long::Configure("no_auto_abbrev");
+my $BASE_CONFIG = { basedir => "$ENV{HOME}/.outputdiff" };
+
+run_outputdiff( \@ARGV, $BASE_CONFIG ) unless defined caller;
 
 my %options;
-my $opts_ok
-    = GetOptions( \%options, 'help|?|h', 'man', 'new|n:s', 'compare|c:s',
-    'list|l', 'remove|r=s', 'remove-all' );
 
-pod2usage(2) if !$opts_ok;
-pod2usage(1) if exists $options{help};
-pod2usage( -exitstatus => 0, -verbose => 2 ) if exists $options{man};
+sub run_outputdiff {
+    my ( $argv, $config ) = @_;
+
+    # reset options to nothing so that multiple testing runs are ok
+    %options = ();
+
+    Getopt::Long::Configure("no_auto_abbrev");
+
+    my $opts_ok = GetOptionsFromArray(
+        $argv,        \%options,     'help|?|h', 'man',
+        'new|n:s',    'compare|c:s', 'list|l',   'remove|r=s',
+        'remove-all', 'verbose|v',   'quiet|q'
+    );
+
+    pod2usage(2) if !$opts_ok;
+    pod2usage(1) if exists $options{help};
+    pod2usage( -exitstatus => 0, -verbose => 2 ) if exists $options{man};
+
+    if ( defined( $options{new} ) ) {
+
+        bootstrap($config);
+
+        my $repo_name = $options{new};
+        if ( !$repo_name ) {
+            my @chars = ( 'a' .. 'z', 'A' .. 'Z' );
+            $repo_name = "";
+            $repo_name .= $chars[ rand @chars ] for 1 .. 8;
+        }
+
+        DEBUG("creating new output repo $repo_name");
+
+        # check for duplicate dir
+        # make the directory and init git
+    }
+}
+
+sub bootstrap {
+    my $config = shift;
+
+    if ( !-d $config->{basedir} ) {
+        DEBUG("Making base dir $config->{basedir}");
+        make_path( $config->{basedir} );
+    }
+}
+
+# a few log4perl-alikes
+sub ERROR {
+    printf "ERROR: %s\n", shift;
+}
+
+sub WARN {
+    printf "WARN: %s\n", shift;
+}
+
+sub INFO {
+    printf "INFO: %s\n", shift if !$options{quiet};
+}
+
+sub DEBUG {
+    printf "DEBUG: %s\n", shift if $options{verbose};
+}
+
+# work-alike for function from perl 5.8.9 and later
+# added for compatibility with CentOS 5, which is stuck on 5.8.8
+sub GetOptionsFromArray {
+    my ( $argv, $opts, @options ) = @_;
+
+    local @ARGV = @$argv;
+    my $opts_ok = GetOptions( $opts, @options );
+
+    # update the passed argv array
+    @$argv = @ARGV;
+
+    return $opts_ok;
+}
 
 __END__
 
