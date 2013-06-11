@@ -1,11 +1,15 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
 
+use Cwd qw(getcwd);
+use DirHandle;
 use Getopt::Long;
 use Pod::Usage;
-use File::Path qw(make_path remove_tree);
+use File::Path qw(mkpath rmtree);
+use File::Spec;
+use IPC::Run3;
 
 my $BASE_CONFIG = { basedir => "$ENV{HOME}/.outputdiff" };
 
@@ -22,9 +26,10 @@ sub run_outputdiff {
     Getopt::Long::Configure("no_auto_abbrev");
 
     my $opts_ok = GetOptionsFromArray(
-        $argv,        \%options,     'help|?|h', 'man',
-        'new|n:s',    'compare|c:s', 'list|l',   'remove|r=s',
-        'remove-all', 'verbose|v',   'quiet|q'
+        $argv,     \%options,     'help|?|h', 'man',
+        'new|n:s', 'compare|c:s', 'last|l:s', 'list',
+        'clean:s', 'verbose|v',   'quiet|q',  'vimdiff',
+        'no-diff'
     );
 
     pod2usage(2) if !$opts_ok;
@@ -44,9 +49,184 @@ sub run_outputdiff {
 
         DEBUG("creating new output repo $repo_name");
 
+        my $full_repo_path
+            = File::Spec->catfile( $config->{basedir}, $repo_name );
+
+        DEBUG("full repo path: $full_repo_path");
+
         # check for duplicate dir
-        # make the directory and init git
+        if ( -d $full_repo_path ) {
+            ERROR("'$repo_name' already exists, please specify another name");
+            exit(1);
+        }
+
+        # make the directory
+        mkpath($full_repo_path);
+
+        # initialize git repo
+        run_git( { wd => $full_repo_path }, qw(init) );
+
+        # take all input and put it into the output file
+        my $data;
+        {
+            local $/ = undef;
+            $data = <STDIN>;
+        }
+
+        open my $output_fh, ">",
+            File::Spec->catfile( $full_repo_path, "output" )
+            or die "unable to create output file: $!";
+        print $output_fh $data;
+        close $output_fh
+            or warn "unable to close output file: $!";
+
+        run_git( { wd => $full_repo_path }, qw(add output) );
+        run_git( { wd => $full_repo_path }, qw(commit -m first) );
+
+        # record the name of the repo so that
+        # future comparisons will just work
+        record_current( $config, $repo_name );
+
+        INFO("Initialized new capture.");
     }
+    elsif ( defined( $options{compare} ) ) {
+        my $repo_name = read_current($config);
+
+        my $full_repo_path
+            = File::Spec->catfile( $config->{basedir}, $repo_name );
+
+        # take all input and put it into the output file
+        my $data;
+        {
+            local $/ = undef;
+            $data = <STDIN>;
+        }
+
+        open my $output_fh, ">",
+            File::Spec->catfile( $full_repo_path, "output" )
+            or die "unable to create output file: $!";
+        print $output_fh $data;
+        close $output_fh
+            or warn "unable to close output file: $!";
+
+        run_git( { wd => $full_repo_path }, qw(add output) );
+
+        # TODO: come up with a better default message
+        # (like counting the number of revisions)
+        run_git( { wd => $full_repo_path }, qw(commit -m new) );
+
+        # record the name of the repo so that
+        # future comparisons will just work
+        record_current( $config, $repo_name );
+
+        if ( !$options{'no-diff'} ) {
+            run_git( { wd => $full_repo_path, expose => 1 },
+                qw(diff HEAD^ HEAD) );
+        }
+    }
+    elsif ( defined( $options{'last'} ) ) {
+        my $repo_name = read_current($config);
+
+        # TODO: check for fewer than 2 revisions
+
+        my $full_repo_path
+            = File::Spec->catfile( $config->{basedir}, $repo_name );
+
+        my @diff_command = qw(diff HEAD^ HEAD);
+        if ( $options{vimdiff} ) {
+            @diff_command = qw(difftool --tool=vimdiff -y HEAD^ HEAD);
+        }
+        run_git( { wd => $full_repo_path, expose => 1 }, @diff_command );
+    }
+    elsif ( defined( $options{'list'} ) ) {
+        my $dirhandle = DirHandle->new( $config->{basedir} );
+        if ( defined($dirhandle) ) {
+            my $dir;
+            while ( defined( $dir = $dirhandle->read ) ) {
+                next if $dir eq '.';
+                next if $dir eq '..';
+
+                # TODO: provide more information here than just the
+                # directory name, like the time it was created and
+                # how many outputs there are
+                INFO("$dir");
+            }
+        }
+    }
+    elsif ( defined( $options{'clean'} ) ) {
+        my $dirhandle = DirHandle->new( $config->{basedir} );
+        if ( defined($dirhandle) ) {
+            my $dir;
+            while ( defined( $dir = $dirhandle->read ) ) {
+                next if $dir eq '.';
+                next if $dir eq '..';
+                if ( !$options{'clean'} || $options{'clean'} eq $dir ) {
+                    INFO("removing $dir");
+                    rmtree( File::Spec->catfile( $config->{basedir}, $dir ) );
+                }
+            }
+        }
+    }
+}
+
+sub record_current {
+    my ( $config, $name ) = @_;
+
+    open my $current_fh, ">",
+        File::Spec->catfile( $config->{basedir}, "CURRENT" )
+        or die "unable to create current file: $!";
+    print $current_fh $name;
+    close $current_fh
+        or warn "unable to close current file: $!";
+}
+
+sub read_current {
+    my ($config) = @_;
+
+    my $current_file = File::Spec->catfile( $config->{basedir}, "CURRENT" );
+    if ( -e $current_file ) {
+
+        open my $current_fh, "<", $current_file
+            or die "unable to read current file: $!";
+
+        my $current = <$current_fh>;
+
+        close $current_fh
+            or warn "unable to close current file: $!";
+
+        return $current;
+    }
+}
+
+sub run_git {
+    my ( $options, @git_args ) = @_;
+
+    my $cwd_before_git = getcwd();
+
+    DEBUG( 'running git ' . join( ' ', @git_args ) . " in $options->{wd}" );
+    chdir( $options->{wd} );
+
+    my $return;
+
+    if ( $options->{expose} ) {
+        system( 'git', @git_args );
+    }
+    else {
+        my ( $output, $error );
+        run3( [ 'git', @git_args ], \undef, \$output, \$error );
+
+        if ( $? >> 8 != 0 ) {
+            ERROR(
+                "Failed to run git @git_args\nstdout:\n$output\nstderr:\n$error"
+            );
+            exit(1);
+        }
+        $return = { output => $output, error => $error };
+    }
+
+    chdir($cwd_before_git);
+
+    return $return;
 }
 
 sub bootstrap {
@@ -54,7 +234,7 @@ sub bootstrap {
 
     if ( !-d $config->{basedir} ) {
         DEBUG("Making base dir $config->{basedir}");
-        make_path( $config->{basedir} );
+        mkpath( $config->{basedir} );
     }
 }
 
@@ -105,9 +285,12 @@ outputdiff - Diff output from multiple command runs.
   -m --message <message>    (optional) Specify a message describing the current
                             output.
   -c --compare <name>       Compare new output against the previous output.
-  -l --list                 List all comparisons.
-  -r --remove <name>        Remove a comparison.
-     --remove-all           Remove all previous comparisons.
+  -l --last <name>          Show most recent diff again.
+     --list                 List all comparisons.
+     --clean <name>         Remove a comparison.  If no comparison specified, remove all.
+     --vimdiff              Use vimdiff to show differences.  Only works with
+                            --last, not --compare.
+     --no-diff              Don't show a diff.  Used with --compare to suppress output.
 
  Documentation options:
   -v --verbose              Print more details about what the script is doing.
