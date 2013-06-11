@@ -102,6 +102,8 @@ outputdiff - Diff output from multiple command runs.
  Options:
   -n --new <name>           Create the initial version that future output will
                             be compared against.
+  -m --message <message>    (optional) Specify a message describing the current
+                            output.
   -c --compare <name>       Compare new output against the previous output.
   -l --list                 List all comparisons.
   -r --remove <name>        Remove a comparison.
