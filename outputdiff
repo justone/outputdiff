@@ -65,23 +65,10 @@ sub run_outputdiff {
 
         # initialize git repo
         run_git( { wd => $full_repo_path }, qw(init) );
+        run_git( { wd => $full_repo_path },
+            qw(commit --message empty --allow-empty) );
 
-        # take all input and put it into the output file
-        my $data;
-        {
-            local $/ = undef;
-            $data = <STDIN>;
-        }
-
-        open my $output_fh, ">",
-            File::Spec->catfile( $full_repo_path, "output" )
-            or die "unable to create output file: $!";
-        print $output_fh $data;
-        close $output_fh
-            or warn "unable to close output file: $!";
-
-        run_git( { wd => $full_repo_path }, qw(add output) );
-        run_git( { wd => $full_repo_path }, qw(commit -m first) );
+        grab_input_and_commit($full_repo_path);
 
         # record the name of the repo so that
         # future comparisons will just work
@@ -95,25 +82,7 @@ sub run_outputdiff {
         my $full_repo_path
             = File::Spec->catfile( $config->{basedir}, $repo_name );
 
-        # take all input and put it into the output file
-        my $data;
-        {
-            local $/ = undef;
-            $data = <STDIN>;
-        }
-
-        open my $output_fh, ">",
-            File::Spec->catfile( $full_repo_path, "output" )
-            or die "unable to create output file: $!";
-        print $output_fh $data;
-        close $output_fh
-            or warn "unable to close output file: $!";
-
-        run_git( { wd => $full_repo_path }, qw(add output) );
-
-        # TODO: come up with a better default message
-        # (like counting the number of revisions)
-        run_git( { wd => $full_repo_path }, qw(commit -m new) );
+        grab_input_and_commit($full_repo_path);
 
         # record the name of the repo so that
         # future comparisons will just work
@@ -227,6 +196,30 @@ sub run_git {
     chdir($cwd_before_git);
 
     return $return;
+}
+
+sub grab_input_and_commit {
+    my $full_repo_path = shift;
+
+    my $data;
+    {
+        local $/ = undef;
+        $data = <STDIN>;
+    }
+
+    open my $output_fh, ">", File::Spec->catfile( $full_repo_path, "output" )
+        or die "unable to create output file: $!";
+    print $output_fh $data;
+    close $output_fh
+        or warn "unable to close output file: $!";
+
+    # figure out how many commits there are and add one (for the message)
+    my $result
+        = run_git( { wd => $full_repo_path }, qw(log --format=oneline) );
+    my $count = scalar( split( /\n/, $result->{output} ) );
+
+    run_git( { wd => $full_repo_path }, qw(add output) );
+    run_git( { wd => $full_repo_path }, qw(commit -m), "result $count" );
 }
 
 sub bootstrap {
