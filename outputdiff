@@ -26,10 +26,10 @@ sub run_outputdiff {
     Getopt::Long::Configure("no_auto_abbrev");
 
     my $opts_ok = GetOptionsFromArray(
-        $argv,     \%options,     'help|?|h', 'man',
-        'new|n:s', 'compare|c:s', 'last|l:s', 'list',
-        'clean:s', 'verbose|v',   'quiet|q',  'vimdiff',
-        'no-diff'
+        $argv,     \%options,     'help|?|h',  'man',
+        'new|n:s', 'compare|c:s', 'last|l:s',  'output|o:s',
+        'list',    'clean:s',     'verbose|v', 'quiet|q',
+        'vimdiff', 'no-diff'
     );
 
     pod2usage(2) if !$opts_ok;
@@ -135,6 +135,29 @@ sub run_outputdiff {
                 }
             }
         }
+    }
+    elsif ( defined( $options{'output'} ) ) {
+        my $repo_name = read_current($config);
+
+        # TODO: check for no current repo
+
+        my $full_repo_path
+            = File::Spec->catfile( $config->{basedir}, $repo_name );
+
+        # check for duplicate dir
+        if ( -d $full_repo_path ) {
+            open my $read_fh, "<",
+                File::Spec->catfile( $full_repo_path, "output" )
+                or die "unable to read output file: $!";
+            while ( my $line = <$read_fh> ) {
+                print $line;
+            }
+            close $read_fh
+                or warn "unable to close output file: $!";
+        }
+    }
+    else {
+        die "You didn't specify anything\n";
     }
 }
 
