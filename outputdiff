@@ -26,10 +26,10 @@ sub run_outputdiff {
     Getopt::Long::Configure("no_auto_abbrev");
 
     my $opts_ok = GetOptionsFromArray(
-        $argv,     \%options,     'help|?|h',  'man',
-        'new|n:s', 'compare|c:s', 'last|l:s',  'output|o:s',
-        'list',    'clean:s',     'verbose|v', 'quiet|q',
-        'vimdiff', 'no-diff'
+        $argv,     \%options,     'help|?|h', 'man',
+        'new|n:s', 'compare|c:s', 'last|l:s', 'output|o:s',
+        'log:s',   'list',        'clean:s',  'verbose|v',
+        'quiet|q', 'vimdiff',     'no-diff'
     );
 
     pod2usage(2) if !$opts_ok;
@@ -135,6 +135,20 @@ sub run_outputdiff {
                 }
             }
         }
+    }
+    elsif ( defined( $options{'log'} ) ) {
+        my $repo_name = read_current($config);
+
+        # TODO: check for no current repo
+
+        my $full_repo_path
+            = File::Spec->catfile( $config->{basedir}, $repo_name );
+
+        run_git(
+            { wd => $full_repo_path, expose => 1 },
+            qw(log --graph --abbrev-commit --date=relative),
+            '--pretty=format:%h - %s (%cr)'
+        );
     }
     elsif ( defined( $options{'output'} ) ) {
         my $repo_name = read_current($config);
@@ -302,8 +316,9 @@ outputdiff - Diff output from multiple command runs.
                             output.
   -c --compare <name>       Compare new output against the previous output.
   -l --last <name>          Show most recent diff again.
-     --list                 List all comparisons.
+     --log <name>           Show log of captured output.
      --clean <name>         Remove a comparison.  If no comparison specified, remove all.
+     --list                 List all comparisons.
      --vimdiff              Use vimdiff to show differences.  Only works with
                             --last, not --compare.
      --no-diff              Don't show a diff.  Used with --compare to suppress output.
