@@ -82,13 +82,13 @@ sub run_outputdiff {
         my $full_repo_path
             = File::Spec->catfile( $config->{basedir}, $repo_name );
 
-        grab_input_and_commit($full_repo_path);
+        my $output_has_changes = grab_input_and_commit($full_repo_path);
 
         # record the name of the repo so that
         # future comparisons will just work
         record_current( $config, $repo_name );
 
-        if ( !$options{'no-diff'} ) {
+        if ( !$options{'no-diff'} && $output_has_changes ) {
             run_git( { wd => $full_repo_path, expose => 1 },
                 qw(diff HEAD^ HEAD) );
         }
@@ -244,19 +244,34 @@ sub grab_input_and_commit {
         $data = <STDIN>;
     }
 
+    DEBUG("Writing to $full_repo_path/output");
     open my $output_fh, ">", File::Spec->catfile( $full_repo_path, "output" )
         or die "unable to create output file: $!";
     print $output_fh $data;
     close $output_fh
         or warn "unable to close output file: $!";
 
-    # figure out how many commits there are and add one (for the message)
-    my $result
-        = run_git( { wd => $full_repo_path }, qw(log --format=oneline) );
-    my $count = scalar( split( /\n/, $result->{output} ) );
+    my $result = run_git( { wd => $full_repo_path }, qw(status --porcelain) );
 
-    run_git( { wd => $full_repo_path }, qw(add output) );
-    run_git( { wd => $full_repo_path }, qw(commit -m), "result $count" );
+    # if the output file has actually changed
+    if ( $result->{output} =~ /output/ ) {
+
+        # figure out how many commits there are and add one (for the message)
+        my $result
+            = run_git( { wd => $full_repo_path }, qw(log --format=oneline) );
+        my @lines = split( /\n/, $result->{output} );
+        my $count = scalar(@lines);
+
+        run_git( { wd => $full_repo_path }, qw(add output) );
+        run_git( { wd => $full_repo_path }, qw(commit -m), "result $count" );
+
+        return 1;
+    }
+    else {
+        INFO("No change (output was identical)");
+    }
+
+    return 0;
 }
 
 sub bootstrap {
