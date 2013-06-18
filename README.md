@@ -2,11 +2,11 @@
 
 ## Overview
 
-There are many questions that can be distilled down to a change in the output of a single program.
+Many questions can be answered by looking at the change in the output of a single program.
 
-1. Did that puppet run change the firewall correctly? (iptables -L -n)
-1. What files in /var/log were written to as a result of my ssh connection? (ls -al /var/log)
-1. Did something change in this tree of files? (tree -as)
+1. Did that puppet run change the firewall correctly? `iptables -L -n`
+1. What files in /var/log were written to as a result of my ssh connection? `ls -al /var/log`
+1. Did something change in this tree of files? `tree -as`
 
 Sometimes looking for the differences is easy, but it can be difficult if there are many lines or the differences are in multiple places.  `outputdiff` helps out with the problem by capturing the output and storing it in a git repo for later comparison.  When new output is given, a diff is shown if there were changes.
 
