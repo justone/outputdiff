@@ -114,6 +114,7 @@ sub run_outputdiff {
             while ( defined( $dir = $dirhandle->read ) ) {
                 next if $dir eq '.';
                 next if $dir eq '..';
+                next if $dir eq 'CURRENT';
 
                 # TODO: provide more information here than just the
                 # directory name, like the time it was created and
@@ -313,6 +314,9 @@ sub GetOptionsFromArray {
 
     return $opts_ok;
 }
+
+# For testing
+1;
 
 __END__
 
