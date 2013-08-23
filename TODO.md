@@ -3,4 +3,3 @@
 * Add 'skip' functionality to --last
 * Add ability to specify extra params to --log
 * Add --stat to --log
-* Bundle IPC::Run3
